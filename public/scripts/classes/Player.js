@@ -1,7 +1,8 @@
 class Player extends Sprite {
   constructor({
-    color = "#fff",
+    username,
     life,
+    protection,
     width,
     height,
     position,
@@ -27,12 +28,14 @@ class Player extends Sprite {
       offset,
       inverter
     })
-    this.color = color
+    this.username = username
     this.life = life
+    this.protection = protection
     this.width = width
     this.height = height
     this.position = position
     this.hitBox = hitBox
+    this.hasActivatedHitbox = false
     this.direction = direction
     this.velocity = velocity
     this.speed = speed
@@ -53,10 +56,10 @@ class Player extends Sprite {
     this.camerabox = {
       position: {
         x: this.position.x - 90,
-        y: this.position.y - 30
+        y: this.position.y - 60
       },
       width: 200,
-      height: 80
+      height: 130
     }
   }
 
@@ -77,7 +80,7 @@ class Player extends Sprite {
     const cameraboxRightSide = this.camerabox.position.x + this.camerabox.width
     const scaledDownCanvasWidth = canvas.width / 4
 
-    if (cameraboxRightSide >= background.image.width) return
+    if (cameraboxRightSide >= 576) return
 
     if (
       cameraboxRightSide >=
@@ -88,7 +91,10 @@ class Player extends Sprite {
   }
 
   shouldPanCameraToTheRight({ canvas, camera }) {
-    if (this.camerabox.position.x <= 0) return
+    if (this.camerabox.position.x <= 0) {
+      camera.position.x = 0
+      return
+    }
 
     if (this.camerabox.position.x <= Math.abs(camera.position.x)) {
       camera.position.x -= this.velocity.x
@@ -96,7 +102,10 @@ class Player extends Sprite {
   }
 
   shouldPanCameraToTheDown({ canvas, camera }) {
-    if (this.camerabox.position.y + this.velocity.y <= 0) return
+    if (this.camerabox.position.y + this.velocity.y <= 0) {
+      this.camerabox.position.y = -this.velocity.y
+      return
+    }
 
     if (this.camerabox.position.y <= Math.abs(camera.position.y)) {
       camera.position.y -= this.velocity.y
@@ -107,8 +116,11 @@ class Player extends Sprite {
     if (
       this.camerabox.position.y + this.camerabox.height + this.velocity.y >=
       background.image.height
-    )
+    ) {
+      this.camerabox.position.y =
+        background.image.height - (this.camerabox.height + this.velocity.y)
       return
+    }
     const scaledCanvasHeight = canvas.height / 4
 
     if (
@@ -120,8 +132,11 @@ class Player extends Sprite {
   }
 
   update() {
-    this.updateCamerabox()
-    if (this.status.death && this.frameCurrent === this.frameMax - 1) return
+    if (this.status.death && this.frameCurrent === this.frameMax - 1) {
+      if (frontEndPlayers[socket.id] === this) {
+        this.revive()
+      }
+    }
 
     if (this.life <= 0) this.status.death = true
 
@@ -136,13 +151,14 @@ class Player extends Sprite {
       this.switchSprite('defend')
     } else if (this.velocity.y < 0) {
       this.switchSprite('jumpUp')
-      this.shouldPanCameraToTheDown({ camera, canvas })
     } else if (this.velocity.y > 0) {
       this.switchSprite('jumpDown')
-      this.shouldPanCameraToTheUp({ canvas, camera })
     } else if (this.direction.down) {
       this.switchSprite('slide')
-    } else if (this.direction.left || this.direction.right) {
+    } else if (
+      (this.direction.left && !this.direction.right) ||
+      (this.direction.right && !this.direction.left)
+    ) {
       this.switchSprite('run')
     } else {
       this.switchSprite('idle')
@@ -154,17 +170,37 @@ class Player extends Sprite {
       if (this.direction.left) {
         this.velocity.x = -this.speed
         this.inverter = true
-        this.shouldPanCameraToTheRight({ canvas, camera })
       }
       if (this.direction.right) {
         this.velocity.x = this.speed
         this.inverter = false
+      }
+      if (this.direction.right && this.direction.left) {
+        this.velocity.x = 0
+        this.inverter = false
+      }
+    }
+    if (frontEndPlayers[socket.id] == this) {
+      if (this.direction.right) {
         this.shouldPanCameraToTheLeft({ canvas, camera })
       }
+      if (this.direction.left) {
+        this.shouldPanCameraToTheRight({ canvas, camera })
+      }
+      if (this.velocity.y >= 0) {
+        this.shouldPanCameraToTheUp({ canvas, camera })
+      }
+      if (this.velocity.y < 0) {
+        this.shouldPanCameraToTheDown({ camera, canvas })
+      }
+
+      this.updateCamerabox()
     }
 
     // pulo
     if (this.direction.up && this.velocity.y == 0) {
+      sequenceNumber++
+      playerInputs.push({ sequenceNumber, dx: 0, dy: -4 })
       this.velocity.y = -4
     }
 
@@ -173,9 +209,20 @@ class Player extends Sprite {
     this.checkForHorizontalCollisions()
     this.applyGravity()
     this.checkForVerticalCollisions()
-    this.checkDemage()
 
-    this.updateSprite()
+    if (frontEndPlayers[socket.id] == this) {
+      socket.emit('updatePosition', {
+        direction: this.direction,
+        sequenceNumber
+      })
+      socket.emit('checkForHorizontalCollisions', collisionBlocks)
+      socket.emit('applyGravity')
+      socket.emit('checkForVerticalCollisions', {
+        collisionBlocks: collisionBlocks,
+        platformCollisionBlocks: platformCollisionBlocks
+      })
+      socket.emit('checkDemage')
+    }
 
     // desenha caixas de colisão
 
@@ -183,12 +230,15 @@ class Player extends Sprite {
       ctx.fillStyle = '#00ff00'
       ctx.fillRect(this.position.x, this.position.y, this.width, this.height)
       ctx.fillStyle = '#ff0000'
-      ctx.fillRect(
-        this.hitBox.position.x,
-        this.hitBox.position.y,
-        this.hitBox.width,
-        this.hitBox.height
-      )
+
+      if (this.hitBox.active) {
+        ctx.fillRect(
+          this.hitBox.position.x,
+          this.hitBox.position.y,
+          this.hitBox.width,
+          this.hitBox.height
+        )
+      }
 
       ctx.fillStyle = '#0000ff35'
       ctx.fillRect(
@@ -199,16 +249,56 @@ class Player extends Sprite {
       )
     }
 
-    ctx.shadowColor = this.color
-    ctx.shadowBlur = 8;
-    ctx.shadowOffsetX = 0
-    ctx.shadowOffsetY = 0
-    this.draw()
-    ctx.shadowColor = this.color
-    ctx.shadowBlur = 0;
-    ctx.shadowOffsetX = 0
-    ctx.shadowOffsetY = 0
+    if (frontEndPlayers[socket.id] == this) {
+      document.querySelector('#life').style.width = this.life + '%'
+      document.querySelector('#xp').style.width = this.xp + '%'
+    }
 
+    if (showLifebar) {
+      if (frontEndPlayers[socket.id] === this) {
+        this.protection ?  ctx.fillStyle = '#FFD700' : ctx.fillStyle = '#f00' // Cor do triângulo
+        ctx.beginPath()
+        ctx.moveTo(this.position.x + this.width / 2, this.position.y - 5) // Ponto do topo do triângulo
+        ctx.lineTo(this.position.x + this.width / 2 - 3, this.position.y - 8) // Ponto inferior esquerdo
+        ctx.lineTo(this.position.x + this.width / 2 + 3, this.position.y - 8) // Ponto inferior direito
+        ctx.closePath()
+        ctx.fill()
+      } else {
+        const barWidth = 20 // Largura da barra de vida
+        const barHeight = 1 // Altura da barra de vida
+        const offsetY = 5 // Distância acima do jogador
+
+        ctx.font = '4px Arial'
+        this.protection ?  ctx.fillStyle = '#FFD700' : ctx.fillStyle = '#fff'
+        ctx.textAlign = 'center'
+
+        ctx.fillText(
+          this.username,
+          this.position.x + this.width / 2,
+          this.position.y - 8
+        )
+
+        // Barra vermelha (fundo da vida)
+        ctx.fillStyle = '#f00'
+        ctx.fillRect(
+          this.position.x + this.width / 2 - barWidth / 2,
+          this.position.y - offsetY,
+          barWidth,
+          barHeight
+        )
+        // Barra verde (vida restante)
+        this.protection ?  ctx.fillStyle = '#FFD700' : ctx.fillStyle = '#0f0'
+        ctx.fillRect(
+          this.position.x + this.width / 2 - barWidth / 2,
+          this.position.y - offsetY,
+          (this.life / 100) * barWidth, // Proporção da vida
+          barHeight
+        )
+      }
+    }
+
+    this.updateSprite()
+    this.draw()
   }
 
   checkForHorizontalCollisions() {
@@ -237,6 +327,8 @@ class Player extends Sprite {
   }
 
   applyGravity() {
+    sequenceNumber++
+
     this.velocity.y += gravity
     this.position.y += this.velocity.y
   }
@@ -257,7 +349,7 @@ class Player extends Sprite {
           break
         }
         if (this.velocity.y < 0) {
-          this.velocity.y = 0
+          this.velocity.y = gravity
           this.position.y =
             collisionBlock.position.y + collisionBlock.height + 0.1
           break
@@ -285,49 +377,49 @@ class Player extends Sprite {
     }
   }
 
-  checkDemage() {
-    jogador.map((p) => {
-      if (p == this || this.status.takeHit || this.status.defend) return
-      if (
-        collision({ object1: this, object2: p.hitBox }) &&
-        !this.status.takeHit
-      ) {
-        this.status.takeHit = true
-        this.life -= p.hitBox.hitPower
-        if (this.life < 0) this.life = 0
-
-        if (jogador[0] == this) {
-          document.querySelector('#lifep1').style.width = this.life + '%'
-        } else {
-          document.querySelector('#lifep2').style.width = this.life + '%'
-        }
-      }
-    })
-  }
-
   addHitbox(atack) {
-    this.hitBox.width = this.sprites[atack].hitBox.width
-    this.hitBox.height = this.sprites[atack].hitBox.height
-
-    if (!this.inverter) {
-      this.hitBox.position.x =
-        this.position.x + this.width + this.sprites[atack].hitBox.position.x
+    this.hitBox.active = true
+    if (this.sprites[atack].typeProjectile) {
+      if (frontEndPlayers[socket.id] == this) {
+        socket.emit('addHitbox', atack)
+      }
+      return
     } else {
-      this.hitBox.position.x =
-        this.position.x -
-        this.sprites[atack].hitBox.width -
-        this.sprites[atack].hitBox.position.x
-    }
-    this.hitBox.position.y =
-      this.position.y + this.sprites[atack].hitBox.position.y
+      this.hitBox.width = this.sprites[atack].hitBox.width
+      this.hitBox.height = this.sprites[atack].hitBox.height
 
-    this.hitBox.hitPower = this.sprites[atack].hitBox.hitPower
+      if (!this.inverter) {
+        this.hitBox.position.x =
+          this.position.x + this.width + this.sprites[atack].hitBox.position.x
+      } else {
+        this.hitBox.position.x =
+          this.position.x -
+          this.sprites[atack].hitBox.width -
+          this.sprites[atack].hitBox.position.x
+      }
+      this.hitBox.position.y =
+        this.position.y + this.sprites[atack].hitBox.position.y
+
+      this.hitBox.hitPower = this.sprites[atack].hitBox.hitPower
+
+      if (frontEndPlayers[socket.id] == this) socket.emit('addHitbox', atack)
+    }
   }
   removeHitbox() {
+    this.hitBox.active = false
     this.hitBox.width = 0
     this.hitBox.height = 0
     this.hitBox.position.x = 0
     this.hitBox.position.y = 0
+  }
+
+  revive() {
+    socket.emit('revive')
+    socket.emit('removeHitbox')
+    camera.position = {
+      x: canvas.width / 4 / 2 - 288,
+      y: 0
+    }
   }
 
   // aplica os sprites
@@ -340,6 +432,7 @@ class Player extends Sprite {
     }
     if (sprite === 'takeHit' && this.frameCurrent === this.frameMax - 1) {
       this.status.takeHit = false
+      if (frontEndPlayers[socket.id] == this) socket.emit('disableTakeHit')
     }
     switch (sprite) {
       case 'atack1':
@@ -350,12 +443,21 @@ class Player extends Sprite {
           this.frameCurrent = 0
         } else if (this.frameCurrent == this.frameMax - 1) {
           this.status.atack = 0
-        } else if (this.frameCurrent == this.sprites.atack1.atackStart) {
-          // adiciona a hitbox
+          if (frontEndPlayers[socket.id] == this) {
+            socket.emit('endAtack')
+          }
+        } else if (
+          this.frameCurrent == this.sprites.atack1.atackStart &&
+          !this.hitBox.active &&
+          !this.hasActivatedHitbox
+        ) {
+          this.hasActivatedHitbox = true // Marca que a hitbox foi ativada.   // adiciona a hitbox
           this.addHitbox('atack1')
         } else if (this.frameCurrent == this.sprites.atack1.atackEnd - 1) {
           // remove a hitbox
+          this.hasActivatedHitbox = false
           this.removeHitbox()
+          socket.emit('removeHitbox')
         }
         break
       case 'atack2':
@@ -366,12 +468,22 @@ class Player extends Sprite {
           this.frameCurrent = 0
         } else if (this.frameCurrent == this.frameMax - 1) {
           this.status.atack = 0
-        } else if (this.frameCurrent == this.sprites.atack2.atackStart) {
+          if (frontEndPlayers[socket.id] == this) {
+            socket.emit('endAtack')
+          }
+        } else if (
+          this.frameCurrent == this.sprites.atack2.atackStart &&
+          !this.hitBox.active &&
+          !this.hasActivatedHitbox
+        ) {
           // adiciona a hitbox
+          this.hasActivatedHitbox = true
           this.addHitbox('atack2')
         } else if (this.frameCurrent == this.sprites.atack2.atackEnd - 1) {
           // remove a hitbox
+          this.hasActivatedHitbox = false
           this.removeHitbox()
+          socket.emit('removeHitbox')
         }
         break
       case 'atack3':
@@ -382,12 +494,22 @@ class Player extends Sprite {
           this.frameCurrent = 0
         } else if (this.frameCurrent == this.frameMax - 1) {
           this.status.atack = 0
-        } else if (this.frameCurrent == this.sprites.atack3.atackStart) {
+          if (frontEndPlayers[socket.id] == this) {
+            socket.emit('endAtack')
+          }
+        } else if (
+          this.frameCurrent == this.sprites.atack3.atackStart &&
+          !this.hitBox.active &&
+          !this.hasActivatedHitbox
+        ) {
           // adiciona a hitbox
+          this.hasActivatedHitbox = true
           this.addHitbox('atack3')
         } else if (this.frameCurrent == this.sprites.atack3.atackEnd - 1) {
           // remove a hitbox
+          this.hasActivatedHitbox = false
           this.removeHitbox()
+          socket.emit('removeHitbox')
         }
         break
       case 'atack4':
@@ -398,12 +520,23 @@ class Player extends Sprite {
           this.frameCurrent = 0
         } else if (this.frameCurrent == this.frameMax - 1) {
           this.status.atack = 0
-        } else if (this.frameCurrent == this.sprites.atack4.atackStart) {
+          if (frontEndPlayers[socket.id] == this) {
+            socket.emit('endAtack')
+          }
+        } else if (
+          this.frameCurrent === this.sprites.atack4.atackStart &&
+          !this.hitBox.active &&
+          !this.hasActivatedHitbox
+        ) {
           // adiciona a hitbox
+          
+          this.hasActivatedHitbox = true
           this.addHitbox('atack4')
-        } else if (this.frameCurrent == this.sprites.atack4.atackEnd - 1) {
+        } else if (this.frameCurrent === this.sprites.atack4.atackEnd - 1) {
           // remove a hitbox
+          this.hasActivatedHitbox = false
           this.removeHitbox()
+          socket.emit('removeHitbox')
         }
         break
     }

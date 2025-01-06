@@ -9,6 +9,7 @@ class Sprite {
     offset = { x: 0, y: 0 },
     inverter = false,
   }) {
+  
     this.width = width;
     this.height = height;
     this.position = position;

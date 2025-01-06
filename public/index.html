@@ -1,82 +1,112 @@
 <!DOCTYPE html>
 <html lang="pt-br">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <script src="https://cdn.socket.io/4.6.1/socket.io.min.js"></script>
-    <script defer src="scripts/utils.js"></script>
-    <script defer src="scripts/characters/Arrow.js"></script>
-    <script defer src="scripts/characters/WaterPrincess.js"></script>
-    <script defer src="scripts/data/collisions.js"></script>
-    <script defer src="scripts/classes/CollisionBlock.js"></script>
-    <script defer src="scripts/classes/Sprites.js"></script>
-    <script defer src="scripts/classes/Player.js"></script>
-    <script defer src="scripts/frontend.js"></script>
-    <title>Document</title>
-    <style>
-      * {
-        margin: 0;
-        padding: 0;
-        box-sizing: border-box;
-      }
-      body {
-        background-color: #ffffff;
-        overflow: hidden;
-      }
-      canvas {
-        width: 100%;
-        height: 100%;
-        background-color: #000000;
-      }
 
-      section {
-        position: fixed;
-        top: 1em;
-        width: 100%;
-        padding: 1em;
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <script src="https://cdn.socket.io/4.6.1/socket.io.min.js"></script>
 
-        display: flex;
-        justify-content: center;
-        align-items: center;
-      }
+  <script defer src="scripts/utils.js"></script>
 
-      .lifebar {
-        width: 100%;
-        height: 2em;
-        background-color: #8c000078;
-        border: 5px solid #ffffff;
-      }
-      .life {
-        display: block;
-        width: 100%;
-        height: 100%;
+  <script defer src="scripts/characters/Arrow.js"></script>
+  <script defer src="scripts/characters/WaterPrincess.js"></script>
+  <script defer src="scripts/characters/windWarrior.js"></script>
+  <script defer src="scripts/characters/FireKnight.js"></script>
+  <script defer src="scripts/characters/MetalBladekeeper.js"></script>
+  <script defer src="scripts/characters/GroundMonk.js"></script>
+  <script defer src="scripts/characters/CrystalMauler.JS"></script>
 
-        box-shadow: inset 0px 0px 11px 1px #15300099;
-        background-color: greenyellow;
-        transition: all 1s;
-      }
-      #timer {
-        background-color: #fff;
-        font-size: 2em;
-        padding: 0 .5em ;
-        font-family: cursive;
-        text-align: center;
-      }
-    </style>
-  </head>
-  <body>
-    <main>
-      <section>
-        <div class="lifebar">
-          <div class="life" id="lifep1"></div>
+  <script defer src="scripts/data/collisions.js"></script>
+  <script defer src="scripts/classes/CollisionBlock.js"></script>
+  <script defer src="scripts/classes/Sprites.js"></script>
+  <script defer src="scripts/classes/Player.js"></script>
+  <script defer src="scripts/frontend.js"></script>
+  <script defer src="scripts/classes/Projectile.js"></script>
+  <link rel="stylesheet" href="styles/style.css">
+  <title>Document</title>
+</head>
+
+<body>
+  <main>
+    <section id="playerSelect">
+      <h1>Elemental Fight</h1>
+      <form id="userForm">
+        <label for="Digite seu username"></label>
+        <input maxlength="10" id="usernameInput" type="text" required placeholder="Username" />
+        <div id="characterContainer">
+          <span>
+            <input required type="radio" name="character" value="0" id="Arrow">
+            <label for="Arrow"><img src="images/sprites/Arrow/Foto.png" width="60" alt="Arrow"></label>
+          </span>
+          <span>
+
+            <input type="radio" name="character" value="1" id="WaterPrincess">
+            <label for="WaterPrincess"><img src="images/sprites/WaterPrincess/Foto.png" width="60"
+                alt="WaterPrincess"></label>
+          </span>
+          <span>
+            <input type="radio" name="character" value="2" id="windWarrior">
+            <label for="windWarrior"><img src="images/sprites/windWarrior/Foto.png" width="60"
+                alt="windWarrior"></label>
+          </span>
+          <span>
+            <input type="radio" name="character" value="3" id="FireKnight">
+            <label for="FireKnight"><img src="images/sprites/FireKnight/Foto.png" width="60" alt="windWarrior"></label>
+          </span>
+          <span>
+            <input type="radio" name="character" value="4" id="MetalBladekeeper">
+            <label for="MetalBladekeeper"><img src="images/sprites/MetalBladekeeper/Foto.png" width="60"
+                alt="MetalBladekeeper"></label>
+          </span>
+          <span>
+            <input  type="radio" name="character" value="5" id="GroundMonk">
+            <label for="GroundMonk"><img src="images/sprites/GroundMonk/Foto.png" width="60" alt="GroundMonk"></label>
+          </span>
+          <span>
+            <input type="radio" name="character" value="6" id="CrystalMauler">
+            <label for="CrystalMauler"><img src="images/sprites/CrystalMauler/Foto.png" width="60"
+                alt="CrystalMauler"></label>
+          </span>
+          <span>
+            <input type="radio" name="character" value="7" id="Aleatorio">
+            <label for="Aleatorio"><img src="images/Aleatorio.png" width="60"
+                alt="Aleatorio"></label>
+          </span>
         </div>
-        <div id="timer">99</div>
-
-        <div class="lifebar">
-          <div class="life" id="lifep2"></div>
+        <div>
+          <button>
+            Entrar
+          </button>
         </div>
-      </section>
-      <canvas id="canvas"></canvas>
-    </main>
-  </body>
+      </form>
+      <!-- username input end -->
+    </section>
+    <section>
+      <div class="lifebar">
+        <div class="life" id="life"></div>
+        <div class="xp" id="xp"></div>
+      </div>
+      <details id="leaderboard">
+        <summary>Classificação</summary>
+        <table>
+          <thead>
+            <th>
+              Player
+            </th>
+            <th>
+              Kills
+            </th>
+            <th>
+              Deaths
+            </th>
+          </thead>
+          <tbody id="leaderboardContainer">
+          </tbody>
+        </table>
+      </details>
+
+    </section>
+    <canvas id="canvas"></canvas>
+  </main>
+</body>
 </html>
