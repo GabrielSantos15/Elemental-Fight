@@ -62,7 +62,7 @@ const MetalBladekeeper = {
     },
     defend: {
       imageSrc: './images/sprites/MetalBladekeeper/Defend.png',
-      frameMax: 17
+      frameMax: 12
     },
     takeHit: {
       imageSrc: './images/sprites/MetalBladekeeper/takeHit.png',

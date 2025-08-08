@@ -169,3 +169,11 @@ th {
     padding: 5px;
     text-align: center;
 }
+
+#ipDisplay{
+    position: fixed;
+    bottom: 1em;
+    left: 1em;
+    color: #fff;
+    font-weight: bold;
+}

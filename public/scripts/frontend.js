@@ -85,7 +85,13 @@ const camera = {
   }
 }
 
-//==================================== Informações das esferas =============================
+//==================================== Informações das esferas 
+// =============================
+
+socket.on('serverInfo', ({ ip, port }) => {
+  document.querySelector('#ipDisplay').textContent = `Servidor: http://${ip}:${port}`
+})
+
 
 socket.on('updatePlayersProjectiles', (backEndPlayersProjectiles) => {
   for (const id in backEndPlayersProjectiles) {

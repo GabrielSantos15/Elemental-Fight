@@ -1,4 +1,5 @@
 const { match } = require('assert')
+const os = require('os')
 const express = require('express')
 const app = express()
 
@@ -9,13 +10,26 @@ const server = http.createServer(app)
 const { Server } = require('socket.io')
 const io = new Server(server, { pingInterval: 2000, pingTimeout: 5000 })
 
-const port = 3000
+const port = 80
 
 app.use(express.static('public'))
 
 app.get('/', (req, res) => {
   res.sendFile(__dirname + '/index.html')
 })
+
+// ip do servidor
+function getLocalIp() {
+  const interfaces = os.networkInterfaces()
+  for (const name of Object.keys(interfaces)) {
+    for (const iface of interfaces[name]) {
+      if (iface.family === 'IPv4' && !iface.internal) {
+        return iface.address
+      }
+    }
+  }
+  return 'localhost'
+}
 
 const backEndPlayers = {}
 const backEndProjectiles = {}
@@ -26,6 +40,9 @@ io.on('connection', (socket) => {
   io.emit('updatePlayers', backEndPlayers)
 
   socket.on('initGame', ({ characterValue, usernameValue }) => {
+    const ip = getLocalIp()
+    socket.emit('serverInfo', { ip, port })
+
     backEndPlayers[socket.id] = {
       username: usernameValue,
       life: 100,
